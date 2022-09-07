@@ -1,0 +1,24 @@
+[package]
+name = "asms"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.63"
+dos-actors = { version = "1.0.2", path = "../dos-actors", features = [
+    "apache-arrow",
+    "fem",
+    "asm",
+    "mount-ctrl_s8000d0005",
+    "m1-ctrl",
+    "windloads",
+] }
+fem = { version = "0.3.0", package = "gmt-fem" }
+lom = { version = "0.1.8", package = "gmt-lom", features = ["apache"] }
+m1-ctrl = "0.1.2"
+m2-ctrl = { version = "0.1.0", path = "../m2-ctrl", features = ["asm"] }
+skyangle = "0.1.2"
+tokio = { version = "1.21.0", features = ["rt-multi-thread", "macros"] }
+vec_box = "1.0.0"
