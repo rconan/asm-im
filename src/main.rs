@@ -1,6 +1,6 @@
 use dos_actors::{
     clients::{
-        arrow_client::Arrow,
+        arrow_client::{Arrow,FileFormat,MatFormat,Get},
         asm::*,
         m1::*,
         mount::{Mount, MountEncoders, MountSetPoint, MountTorques},
@@ -17,34 +17,14 @@ use fem::{
     FEM,
 };
 use lom::{Stats, LOM};
-use std::{env, sync::Arc};
+use std::{env, sync::Arc,path::Path};
 use vec_box::vec_box;
-
-pub struct Sigmoid {
-    i: usize,
-}
-impl Sigmoid {
-    pub fn new() -> Self {
-        Self { i: 0 }
-    }
-}
-impl Update for Sigmoid {}
-impl<U> Write<U> for Sigmoid
-where
-    U: UniqueIdentifier<Data = f64>,
-{
-    fn write(&mut self) -> Option<Arc<Data<U>>> {
-        let u = (self.i as f64 - 6000.) / 8000.;
-        self.i += 1;
-        let r = (1. + (-5. * u).exp()).recip();
-        Some(Arc::new(Data::new(r * r)))
-    }
-}
+        use matio_rs::{MatFile, MatVar, Save};
 
 #[derive(Default)]
 pub struct Adder {
     m2_loads: Option<Arc<Data<M2Loads>>>,
-    u_fs: Option<Arc<Data<Ufs>>>,
+    u_cp: Option<Arc<Data<Ucp>>>,
 }
 impl Update for Adder {}
 impl Read<M2Loads> for Adder {
@@ -52,18 +32,18 @@ impl Read<M2Loads> for Adder {
         self.m2_loads = Some(data.clone());
     }
 }
-impl Read<Ufs> for Adder {
-    fn read(&mut self, data: Arc<Data<Ufs>>) {
-        self.u_fs = Some(data.clone());
+impl Read<Ucp> for Adder {
+    fn read(&mut self, data: Arc<Data<Ucp>>) {
+        self.u_cp = Some(data.clone());
     }
 }
 impl Write<MCM2Lcl6F> for Adder {
     fn write(&mut self) -> Option<Arc<Data<MCM2Lcl6F>>> {
-        if let (Some(m2_loads), Some(u_fs)) = (self.m2_loads.as_ref(), self.u_fs.as_ref()) {
+        if let (Some(m2_loads), Some(u_cp)) = (self.m2_loads.as_ref(), self.u_cp.as_ref()) {
             let sum: Vec<f64> = m2_loads
                 .iter()
-                .zip(u_fs.iter())
-                .map(|(&m2_loads, &ufs)| m2_loads + ufs)
+                .zip(u_cp.iter())
+                .map(|(&m2_loads, &u_cp)| m2_loads + u_cp)
                 .collect();
             Some(Arc::new(Data::new(sum)))
         } else {
@@ -75,7 +55,7 @@ impl Write<MCM2Lcl6F> for Adder {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let sim_sampling_frequency = 8000;
-    let sim_duration = 10_usize;
+    let sim_duration = 60_usize;
     let n_step = sim_sampling_frequency * sim_duration;
 
     let mut fem = FEM::from_env()?.static_from_env()?;
@@ -121,6 +101,7 @@ async fn main() -> anyhow::Result<()> {
         .outs::<OSSM1Lcl>()
         .outs::<MCM2Lcl6D>()
         .outs::<MCM2RB6D>()
+        .outs::<OSSTrussIF6D>()
         .use_static_gain_compensation(n_io)
         .build()?;
     println!("{state_space}");
@@ -136,11 +117,19 @@ async fn main() -> anyhow::Result<()> {
     )
         .into();
 
-    let mut sigmoid: Initiator<_> = Sigmoid::new().into();
+    let signal: std::result::Result<OneSignal,_> = Signals::new(1,n_step).output_signal(0,Signal::Sigmoid{amplitude:1f64,sampling_frequency_hz:sim_sampling_frequency as f64}).progress().into();
+    let mut sigmoid: Initiator<OneSignal,1> = 
+    (signal?,"Sigmoid").into();
     let mut smooth_m1_loads: Actor<_> = Smooth::new().into();
     let mut smooth_m2_loads: Actor<_> = Smooth::new().into();
     let mut smooth_mount_loads: Actor<_> = Smooth::new().into();
     let mut adder: Actor<_> = Adder::default().into();
+
+    let decimation = 8;
+    let logging = Arrow::builder(n_step).decimation(decimation)
+    //.file_format(FileFormat::Matlab(MatFormat::TimeBased(sim_sampling_frequency as f64)))
+    .build().into_arcx();
+    let mut sink = Terminator::<_>::new(logging.clone());
 
     sigmoid
         .add_output()
@@ -201,9 +190,6 @@ async fn main() -> anyhow::Result<()> {
         m1_ctrl::actuators::segment6::Controller::new().into();
     let mut m1_segment7: Actor<_, M1_RATE, 1> =
         m1_ctrl::actuators::segment7::Controller::new().into();
-
-    let logging = Arrow::builder(n_step).build().into_arcx();
-    let mut sink = Terminator::<_>::new(logging.clone());
 
     let mut mount_set_point: Initiator<_> = (Signals::new(3, n_step), "Mount Set Point").into();
     mount_set_point
@@ -321,18 +307,20 @@ async fn main() -> anyhow::Result<()> {
         .into_input(&mut asm_inner);
     asm_inner
         .add_output()
-        .build::<MCM2CP6F>()
+        .build::<MCM2Lcl6F>()
         .into_input(&mut fem);
     asm_inner
         .add_output()
         .build::<MCM2RB6F>()
         .into_input(&mut fem);
-    asm_inner.add_output().build::<Ufs>().into_input(&mut adder);
+    asm_inner.add_output().build::<Ucp>().into_input(&mut adder);
 
     fem.add_output()
         .bootstrap()
+        .multiplex(2)
         .build::<MountEncoders>()
         .into_input(&mut mount)
+        .logn(&mut sink,14).await
         .confirm()?;
     fem.add_output()
         .bootstrap()
@@ -342,6 +330,11 @@ async fn main() -> anyhow::Result<()> {
         .bootstrap()
         .build::<OSSM1Lcl>()
         .log(&mut sink)
+        .await;    
+    fem.add_output()
+        .bootstrap()
+        .build::<OSSTrussIF6D>()
+        .logn(&mut sink,18)
         .await;
     fem.add_output()
         .multiplex(2)
@@ -394,13 +387,34 @@ async fn main() -> anyhow::Result<()> {
     .wait()
     .await?;
 
-    let lom = LOM::builder()
-        .rigid_body_motions_record((*logging.lock().await).record()?)?
+    let logger = &mut *logging.lock().await;
+    let m1_rbm: Vec<Vec<f64>> = logger.get("OSSM1Lcl")?;
+    let m2_rbm: Vec<Vec<f64>> = logger.get("MCM2Lcl6D")?;
+    let truss_if: Vec<Vec<f64>> = logger.get("OSSTrussIF6D")?;
+
+    let n_sample = m1_rbm.len();
+    let n_data = m1_rbm[0].len() + m2_rbm[0].len() + truss_if[0].len();
+
+    let  data: Vec<f64> = m1_rbm.into_iter()
+    .zip(m2_rbm.into_iter())
+    .zip(truss_if.into_iter())
+    .flat_map(|((a,b),c)| a.into_iter().chain(b.into_iter()).chain(c.into_iter()).collect::<Vec<f64>>()).collect();
+    let tau = ((sim_sampling_frequency/decimation) as f64).recip();
+    let time: Vec<_> = (0..n_sample).map(|i| tau * i as f64).collect();
+
+    let root = Path::new("v1_wind_phasing_2022_zen30az000_OS7").with_extension("mat");
+    let mat_file = MatFile::save(&root)?;
+    mat_file.write(MatVar::<Vec<f64>>::new("tt",time.as_slice())?);
+    mat_file.write(MatVar::<Vec<f64>>::array("yt",data.as_slice(),(n_data,n_sample))?);
+
+/*     let lom = LOM::builder()
+        .rigid_body_motions_record((*logging.lock().await).record()?,Some("OSSM1Lcl"),Some("MCM2Lcl6D"))?
         .build()?;
     let tiptilt = lom.tiptilt_mas();
     let n_sample = 1000;
     let tt = tiptilt.std(Some(n_sample));
-    println!("TT STD.: {:.3?}mas", tt);
+    println!("TT STD.: {:.3?}mas", tt); */
+
 
     Ok(())
 }
