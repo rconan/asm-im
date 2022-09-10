@@ -21,6 +21,24 @@ use std::{env, sync::Arc,path::Path};
 use vec_box::vec_box;
         use matio_rs::{MatFile, MatVar, Save};
 
+pub const CFD_CASES: [&str;15] = [
+    "zen30az000_OS2",
+    "zen30az045_OS2",
+    "zen30az090_OS2",
+    "zen30az000_OS7",
+    "zen30az045_OS7",
+    "zen30az090_OS7",
+    "zen30az135_OS7",
+    "zen30az180_OS7",
+    "zen30az000_CD12",
+    "zen30az045_CD12",
+    "zen30az090_CD12",
+    "zen30az135_CD12",
+    "zen30az180_CD12",
+    "zen30az045_CD17",
+    "zen60az045_OS7",
+];
+
 #[derive(Default)]
 pub struct Adder {
     m2_loads: Option<Arc<Data<M2Loads>>>,
@@ -52,8 +70,7 @@ impl Write<MCM2Lcl6F> for Adder {
     }
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+pub async fn model(cfd_case: &str) -> anyhow::Result<()> {
     let sim_sampling_frequency = 8000;
     let sim_duration = 60_usize;
     let n_step = sim_sampling_frequency * sim_duration;
@@ -63,7 +80,7 @@ async fn main() -> anyhow::Result<()> {
     println!("{:}", fem);
 
     let mut cfd_loads: Initiator<_> = (
-        windloads::CfdLoads::foh("/fsx/CASES/zen30az000_OS7", sim_sampling_frequency)
+        windloads::CfdLoads::foh(cfd_case, sim_sampling_frequency)
             .duration(sim_duration as f64)
             .mount(&mut fem, 0, None)
             .m1_segments()
@@ -127,6 +144,7 @@ async fn main() -> anyhow::Result<()> {
 
     let decimation = 8;
     let logging = Arrow::builder(n_step).decimation(decimation)
+    .no_save()
     //.file_format(FileFormat::Matlab(MatFormat::TimeBased(sim_sampling_frequency as f64)))
     .build().into_arcx();
     let mut sink = Terminator::<_>::new(logging.clone());
@@ -402,7 +420,7 @@ async fn main() -> anyhow::Result<()> {
     let tau = ((sim_sampling_frequency/decimation) as f64).recip();
     let time: Vec<_> = (0..n_sample).map(|i| tau * i as f64).collect();
 
-    let root = Path::new("v1_wind_phasing_2022_zen30az000_OS7").with_extension("mat");
+    let root = Path::new(cfd_case).join("windmotions").with_extension("mat");
     let mat_file = MatFile::save(&root)?;
     mat_file.write(MatVar::<Vec<f64>>::new("tt",time.as_slice())?);
     mat_file.write(MatVar::<Vec<f64>>::array("yt",data.as_slice(),(n_data,n_sample))?);

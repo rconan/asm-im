@@ -3,3 +3,4 @@ Cargo.lock
 *.dot*
 *.mat
 *.parquet
+*.zip
