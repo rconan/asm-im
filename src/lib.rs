@@ -22,24 +22,6 @@ use vec_box::vec_box;
 use nalgebra as na;
 use uid::UID;
 
-pub const CFD_CASES: [&str;15] = [
-    "zen30az000_OS2",
-    "zen30az045_OS2",
-    "zen30az090_OS2",
-    "zen30az000_OS7",
-    "zen30az045_OS7",
-    "zen30az090_OS7",
-    "zen30az135_OS7",
-    "zen30az180_OS7",
-    "zen30az000_CD12",
-    "zen30az045_CD12",
-    "zen30az090_CD12",
-    "zen30az135_CD12",
-    "zen30az180_CD12",
-    "zen30az045_CD17",
-    "zen60az045_OS7",
-];
-
 #[cfg(feature="damping0005")]
 const FEM_MODAL_DAMPING: f64 = 0.005;
 #[cfg(feature="damping002")]
