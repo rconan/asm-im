@@ -13,5 +13,6 @@ async fn main() {
 
     let cfd_case = cfd::Baseline::<2021>::default().into_iter().nth(job_idx).unwrap();
     let path = Path::new(&cfd_repo).join(cfd_case.to_string());
+    env::set_var("DATA_REPO",&path);
     asms::model(path.to_str().expect("Failed to convert path to &str")).await.expect(&format!("Failed to run ASMS model for {cfd_case}"));
 }
