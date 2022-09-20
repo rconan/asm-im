@@ -8,21 +8,27 @@ default-run = "main"
 members = ["batch"]
 
 [dependencies]
-anyhow = "1.0.63"
-dos-actors = { version = "2.1.0", features = [
+dos-actors = { version = "3.0.1", package = "gmt_dos-actors", features = [
     "apache-arrow",
     "fem",
     "asm",
-    "mount-ctrl_s8000d0005",
+    "mount-ctrl",
     "m1-ctrl",
     "windloads",
     "matio-rs",
 ] }
+anyhow = "1.0.63"
 fem = { version = "0.3.0", package = "gmt-fem" }
 lom = { version = "1.0.0", package = "gmt-lom", features = ["apache"] }
 m1-ctrl = "0.1.2"
 m2-ctrl = { version = "1.0.0", features = ["asm"] }
-matio-rs = "0.3.0"
 skyangle = "0.1.2"
 tokio = { version = "1.21.0", features = ["rt-multi-thread", "macros"] }
 vec_box = "1.0.0"
+bincode = "1.3.3"
+nalgebra = "0.31.1"
+uid = { version = "0.1.2", package = "dos-uid" }
+
+[features]
+damping002 = ["dos-actors/mount-ctrl_s8000d002ze30"]
+damping0005 = ["dos-actors/mount-ctrl_s8000d0005"]
