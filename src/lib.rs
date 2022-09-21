@@ -96,9 +96,9 @@ fn fig_2_mode(sid: u32) -> na::DMatrix<f64> {
 
 pub async fn model(cfd_case: &str) -> anyhow::Result<()> {
     let sim_sampling_frequency = 8000;
-    let sim_duration = 30_usize;
+    let sim_duration = 400_usize;
     let n_step = sim_sampling_frequency * sim_duration;
-    let n_part = 5;
+    let n_part = 10;
 
     let mut fem = FEM::from_env()?.static_from_env()?;
     let n_io = (fem.n_inputs(), fem.n_outputs());
