@@ -4,10 +4,11 @@ use parse_monitors::cfd;
 
 #[tokio::main]
 async fn main() {
-    let job_idx = env::var("AWS_BATCH_JOB_ARRAY_INDEX")
+/*     let job_idx = env::var("AWS_BATCH_JOB_ARRAY_INDEX")
         .expect("AWS_BATCH_JOB_ARRAY_INDEX env var missing")
         .parse::<usize>()
-        .expect("AWS_BATCH_JOB_ARRAY_INDEX parsing failed");
+        .expect("AWS_BATCH_JOB_ARRAY_INDEX parsing failed"); */
+    let    job_idx = 25;
 
     let cfd_repo = env::var("CFD_REPO").expect("CFD_REPO env var missing");
 
