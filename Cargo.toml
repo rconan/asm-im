@@ -15,7 +15,10 @@ anyhow = "1.0.63"
 fem = { version = "0.3.0", package = "gmt-fem", path = "../fem", features = [
     "mount",
 ] }
-lom = { version = "1.0.0", package = "gmt-lom", features = ["apache"] }
+lom = { version = "1.0.1", package = "gmt-lom", features = [
+    "apache",
+    "fem",
+], path = "../gmt-lom" }
 m1-ctrl = { version = "0.1.2", path = "../m1-ctrl" }
 m2-ctrl = { version = "1.0.0", features = ["asm"], path = "../m2-ctrl" }
 skyangle = "0.1.2"
@@ -26,7 +29,9 @@ nalgebra = "0.31.1"
 uid = { version = "0.1.2", package = "dos-uid" }
 arrow = { version = "0.1.0", path = "../dos-actors/clients/arrow", package = "gmt_dos-clients_arrow" }
 mount = { version = "0.1.0", path = "../dos-actors/clients/mount", package = "gmt_dos-clients_mount" }
-windloads = { version = "0.1.0", path = "../dos-actors/clients/windloads", package = "gmt_dos-clients_windloads" }
+windloads = { version = "0.1.0", path = "../dos-actors/clients/windloads", package = "gmt_dos-clients_windloads", features = [
+    "asm",
+] }
 geotrans = "0.2.2"
 
 [features]
@@ -36,3 +41,9 @@ damping0005 = ["mount/s8000d0005"]
 [[bin]]
 name = "analysis"
 path = "src/bin/analysis/main.rs"
+required-features = ["damping002"]
+
+[[bin]]
+name = "gusts"
+path = "src/bin/gusts/main.rs"
+required-features = ["damping002"]

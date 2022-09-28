@@ -1,5 +1,4 @@
 use arrow::Arrow;
-use m2_ctrl::*;
 use dos_actors::{
     clients::{Smooth, Weight},
     io::{Data, Read, UniqueIdentifier, Write},
@@ -12,6 +11,7 @@ use fem::{
     FEM,
 };
 use m1_ctrl::*;
+use m2_ctrl::*;
 use mount::{Mount, MountEncoders, MountSetPoint, MountTorques};
 use nalgebra as na;
 use std::{collections::HashMap, env, fs::File, path::Path, sync::Arc};
@@ -19,9 +19,9 @@ use vec_box::vec_box;
 use windloads::{self, M1Loads, M2Loads, MountLoads};
 
 #[cfg(feature = "damping0005")]
-const FEM_MODAL_DAMPING: f64 = 0.005;
+pub const FEM_MODAL_DAMPING: f64 = 0.005;
 #[cfg(feature = "damping002")]
-const FEM_MODAL_DAMPING: f64 = 0.02;
+pub const FEM_MODAL_DAMPING: f64 = 0.02;
 
 #[derive(Default)]
 pub struct Adder {
