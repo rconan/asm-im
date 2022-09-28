@@ -9,37 +9,21 @@ use fem::{
     fem_io::*,
     FEM,
 };
-use lom::{TipTilt, LOM};
+use lom::{actors_interface::TipTilt, LOM};
 use mount::{Mount, MountEncoders, MountSetPoint, MountTorques};
 use vec_box::vec_box;
 
 #[derive(UID)]
-#[alias(
-    name = "lom::actors_interface::TipTilt",
-    client = "LOM",
-    traits = "Write"
-)]
+#[alias(name = "TipTilt", client = "LOM", traits = "Write")]
 pub enum Jitter2ms {}
 #[derive(UID)]
-#[alias(
-    name = "lom::actors_interface::TipTilt",
-    client = "LOM",
-    traits = "Write"
-)]
+#[alias(name = "TipTilt", client = "LOM", traits = "Write")]
 pub enum Jitter7ms {}
 #[derive(UID)]
-#[alias(
-    name = "lom::actors_interface::TipTilt",
-    client = "LOM",
-    traits = "Write"
-)]
+#[alias(name = "TipTilt", client = "LOM", traits = "Write")]
 pub enum Jitter12ms {}
 #[derive(UID)]
-#[alias(
-    name = "lom::actors_interface::TipTilt",
-    client = "LOM",
-    traits = "Write"
-)]
+#[alias(name = "TipTilt", client = "LOM", traits = "Write")]
 pub enum Jitter17ms {}
 
 #[tokio::main]
@@ -60,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
 
     let arrow = Arrow::builder(n_step).build().into_arcx();
 
-    for wind_speed in [2, 7, 12, 17].into_iter().take(1) {
+    for wind_speed in [2, 7, 12, 17] {
         let cfd_case = if wind_speed <= 7 {
             format!("zen30az000_OS{wind_speed}")
         } else {
