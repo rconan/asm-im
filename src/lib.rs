@@ -181,7 +181,7 @@ pub async fn model(cfd_case: &str) -> anyhow::Result<()> {
     // -----------------------------------
     // MODEL
 
-    for part in (0..n_part).into_iter().take(1) {
+    for part in 0..n_part {
         (*cfd_loads_client.lock().await).start_from(part * n_step / n_part);
         (*cfd_loads_client.lock().await).stop_after((part + 1) * n_step / n_part);
 
@@ -204,7 +204,7 @@ pub async fn model(cfd_case: &str) -> anyhow::Result<()> {
         let decimation = 4;
         let mut sink: Terminator<_> = Arrow::builder(n_step)
             .metadata(meta_data.clone())
-            .filename(format!("asms-im_windloading-part{part}-debug"))
+            .filename(format!("asms-im_windloading-part{part}"))
             .decimation(decimation)
             .build()
             .into();
