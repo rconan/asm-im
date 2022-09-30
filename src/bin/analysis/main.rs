@@ -4,14 +4,14 @@ use dos_actors::{
     prelude::*,
     Size, Update, UID,
 };
+use dos_clients_io::CFDM1WindLoads;
 use fem::FEM;
 use geotrans::{Segment, SegmentTrait, Transform, M1};
 use std::sync::Arc;
 use vec_box::vec_box;
-use windloads::M1Loads;
 
 pub struct ForcesToOSS {
-    data: Arc<Data<M1Loads>>,
+    data: Arc<Data<CFDM1WindLoads>>,
 }
 
 impl ForcesToOSS {
@@ -24,8 +24,8 @@ impl ForcesToOSS {
 #[derive(UID)]
 pub enum M1ForcesOSS {}
 impl Update for ForcesToOSS {}
-impl Read<M1Loads> for ForcesToOSS {
-    fn read(&mut self, data: Arc<Data<M1Loads>>) {
+impl Read<CFDM1WindLoads> for ForcesToOSS {
+    fn read(&mut self, data: Arc<Data<CFDM1WindLoads>>) {
         self.data = Arc::clone(&data);
     }
 }
@@ -89,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
         .add_output()
         .multiplex(2)
         .unbounded()
-        .build::<M1Loads>()
+        .build::<CFDM1WindLoads>()
         .into_input(&mut oss_forces)
         .log(&mut logs)
         .await;

@@ -4,13 +4,14 @@ use arrow::Arrow;
 use asms::FEM_MODAL_DAMPING;
 use dos_actors::prelude::*;
 use dos_actors::{io::UniqueIdentifier, UID};
+use dos_clients_io::*;
 use fem::{
     dos::{DiscreteModalSolver, ExponentialMatrix},
     fem_io::*,
     FEM,
 };
 use lom::{actors_interface::TipTilt, LOM};
-use mount::{Mount, MountEncoders, MountSetPoint, MountTorques};
+use mount::Mount;
 use vec_box::vec_box;
 
 #[derive(UID)]
@@ -94,17 +95,17 @@ async fn main() -> anyhow::Result<()> {
         cfd_loads
             .add_output()
             .unbounded()
-            .build::<OSSM1Lcl6F>()
+            .build::<CFDM1WindLoads>()
             .into_input(&mut fem);
         cfd_loads
             .add_output()
             .unbounded()
-            .build::<MCM2Lcl6F>()
+            .build::<CFDM2WindLoads>()
             .into_input(&mut fem);
         cfd_loads
             .add_output()
             .unbounded()
-            .build::<CFD2021106F>()
+            .build::<CFDMountWindLoads>()
             .into_input(&mut fem);
 
         let mut mount: Actor<_> = (Mount::new(), "Mount Control System").into();
@@ -126,11 +127,11 @@ async fn main() -> anyhow::Result<()> {
         let mut lom: Actor<_> = (LOM::builder().build()?, "Linear Optical Model").into();
         fem.add_output()
             .unbounded()
-            .build::<OSSM1Lcl>()
+            .build::<M1RigidBodyMotions>()
             .into_input(&mut lom);
         fem.add_output()
             .unbounded()
-            .build::<MCM2Lcl6D>()
+            .build::<M2RigidBodyMotions>()
             .into_input(&mut lom);
         match wind_speed {
             v if v == 2 => {

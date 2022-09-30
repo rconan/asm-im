@@ -1,22 +1,22 @@
 use arrow::Arrow;
 use dos_actors::{
     clients::{Smooth, Weight},
-    io::{Data, Read, UniqueIdentifier, Write},
+    io::{Data, Read, Write},
     prelude::*,
-    Update, UID,
+    Update,
 };
+use dos_clients_io::*;
 use fem::{
-    dos::{DiscreteModalSolver, ExponentialMatrix, M1SegmentsAxialD},
+    dos::{DiscreteModalSolver, ExponentialMatrix},
     fem_io::*,
     FEM,
 };
 use m1_ctrl::*;
 use m2_ctrl::*;
-use mount::{Mount, MountEncoders, MountSetPoint, MountTorques};
+use mount::Mount;
 use nalgebra as na;
 use std::{collections::HashMap, env, fs::File, path::Path, sync::Arc};
 use vec_box::vec_box;
-use windloads::{self, M1Loads, M2Loads, MountLoads};
 
 #[cfg(feature = "damping0005")]
 pub const FEM_MODAL_DAMPING: f64 = 0.005;
@@ -25,12 +25,12 @@ pub const FEM_MODAL_DAMPING: f64 = 0.02;
 
 #[derive(Default)]
 pub struct Adder {
-    m2_loads: Option<Arc<Data<M2Loads>>>,
+    m2_loads: Option<Arc<Data<CFDM2WindLoads>>>,
     u_cp: Option<Arc<Data<Ucp>>>,
 }
 impl Update for Adder {}
-impl Read<M2Loads> for Adder {
-    fn read(&mut self, data: Arc<Data<M2Loads>>) {
+impl Read<CFDM2WindLoads> for Adder {
+    fn read(&mut self, data: Arc<Data<CFDM2WindLoads>>) {
         self.m2_loads = Some(data.clone());
     }
 }
@@ -39,8 +39,8 @@ impl Read<Ucp> for Adder {
         self.u_cp = Some(data.clone());
     }
 }
-impl Write<MCM2Lcl6F> for Adder {
-    fn write(&mut self) -> Option<Arc<Data<MCM2Lcl6F>>> {
+impl Write<CFDM2WindLoads> for Adder {
+    fn write(&mut self) -> Option<Arc<Data<CFDM2WindLoads>>> {
         if let (Some(m2_loads), Some(u_cp)) = (self.m2_loads.as_ref(), self.u_cp.as_ref()) {
             let sum: Vec<f64> = m2_loads
                 .iter()
@@ -53,29 +53,6 @@ impl Write<MCM2Lcl6F> for Adder {
         }
     }
 }
-
-#[derive(UID)]
-#[alias(
-    name = "OSSM1Lcl",
-    client = "DiscreteModalSolver<ExponentialMatrix>",
-    traits = "Write,Size"
-)]
-enum M1RigidBodyMotions {}
-#[derive(UID)]
-#[alias(
-    name = "MCM2Lcl6D",
-    client = "DiscreteModalSolver<ExponentialMatrix>",
-    traits = "Write,Size"
-)]
-enum M2RigidBodyMotions {}
-
-#[derive(UID)]
-#[alias(
-    name = "M1SegmentsAxialD",
-    client = "DiscreteModalSolver<ExponentialMatrix>",
-    traits = "Write"
-)]
-enum M1BendingModes {}
 
 fn fig_2_mode(sid: u32) -> na::DMatrix<f64> {
     let root_env = env::var("M1CALIBRATION").unwrap_or_else(|_| ".".to_string());
@@ -204,7 +181,7 @@ pub async fn model(cfd_case: &str) -> anyhow::Result<()> {
     // -----------------------------------
     // MODEL
 
-    for part in 0..n_part {
+    for part in (0..n_part).into_iter().take(1) {
         (*cfd_loads_client.lock().await).start_from(part * n_step / n_part);
         (*cfd_loads_client.lock().await).stop_after((part + 1) * n_step / n_part);
 
@@ -227,7 +204,7 @@ pub async fn model(cfd_case: &str) -> anyhow::Result<()> {
         let decimation = 4;
         let mut sink: Terminator<_> = Arrow::builder(n_step)
             .metadata(meta_data.clone())
-            .filename(format!("asms-im_windloading-part{part}"))
+            .filename(format!("asms-im_windloading-part{part}-debug"))
             .decimation(decimation)
             .build()
             .into();
@@ -242,28 +219,31 @@ pub async fn model(cfd_case: &str) -> anyhow::Result<()> {
             .confirm()?;
         cfd_loads
             .add_output()
-            .build::<M1Loads>()
+            .build::<CFDM1WindLoads>()
             .into_input(&mut smooth_m1_loads);
         smooth_m1_loads
             .add_output()
-            .build::<OSSM1Lcl6F>()
+            .build::<CFDM1WindLoads>()
             .into_input(&mut fem);
         cfd_loads
             .add_output()
-            .build::<M2Loads>()
+            .build::<CFDM2WindLoads>()
             .into_input(&mut smooth_m2_loads);
         smooth_m2_loads
             .add_output()
-            .build::<M2Loads>()
+            .build::<CFDM2WindLoads>()
             .into_input(&mut adder);
-        adder.add_output().build::<MCM2Lcl6F>().into_input(&mut fem);
+        adder
+            .add_output()
+            .build::<CFDM2WindLoads>()
+            .into_input(&mut fem);
         cfd_loads
             .add_output()
-            .build::<MountLoads>()
+            .build::<CFDMountWindLoads>()
             .into_input(&mut smooth_mount_loads);
         smooth_mount_loads
             .add_output()
-            .build::<CFD2021106F>()
+            .build::<CFDMountWindLoads>()
             .into_input(&mut fem);
         // MOUNT
         let mut mount: Actor<_> = Actor::new(mount_client.clone());
@@ -385,7 +365,7 @@ pub async fn model(cfd_case: &str) -> anyhow::Result<()> {
             .into_input(&mut m2_positionner);
         m2_positionner
             .add_output()
-            .build::<MCM2SmHexF>()
+            .build::<M2PositionerForces>()
             .into_input(&mut fem);
         // ASM SET POINT
         let mut asm_cmd: Initiator<_> = Actor::new(asm_cmd_client.clone()).name("ASMS Set Point");
@@ -400,11 +380,11 @@ pub async fn model(cfd_case: &str) -> anyhow::Result<()> {
             .into_input(&mut asm_inner);
         asm_inner
             .add_output()
-            .build::<MCM2Lcl6F>()
+            .build::<M2ASMFaceSheetForces>()
             .into_input(&mut fem);
         asm_inner
             .add_output()
-            .build::<MCM2RB6F>()
+            .build::<M2ASMRigidBodyForces>()
             .into_input(&mut fem);
         asm_inner.add_output().build::<Ucp>().into_input(&mut adder);
 
@@ -426,24 +406,24 @@ pub async fn model(cfd_case: &str) -> anyhow::Result<()> {
             .multiplex(2)
             .bootstrap()
             .unbounded()
-            .build::<MCM2Lcl6D>()
+            .build::<M2ASMFaceSheetNodes>()
             .into_input(&mut asm_inner)
-            .log(&mut sink)
+            .logn(&mut sink, 42)
             .await
             .confirm()?;
         fem.add_output()
             .bootstrap()
-            .build::<MCM2SmHexD>()
+            .build::<M2PositionerNodes>()
             .into_input(&mut m2_positionner);
         fem.add_output()
             .bootstrap()
-            .build::<MCM2RB6D>()
+            .build::<M2ASMRigidBodyNodes>()
             .into_input(&mut asm_inner)
             .confirm()?;
         fem.add_output()
             .bootstrap()
             .unbounded()
-            .build::<M1BendingModes>()
+            .build::<M1ModeShapes>()
             .logn(&mut sink, 162 * 7)
             .await;
         fem.add_output()
