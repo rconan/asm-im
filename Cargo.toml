@@ -8,7 +8,7 @@ default-run = "main"
 members = ["batch"]
 
 [dependencies]
-dos-actors = { version = "3.0.1", package = "gmt_dos-actors", features = [
+dos-actors = { version = "4.0.0", package = "gmt_dos-actors", features = [
     "matio-rs",
 ], path = "../dos-actors" }
 anyhow = "1.0.63"
